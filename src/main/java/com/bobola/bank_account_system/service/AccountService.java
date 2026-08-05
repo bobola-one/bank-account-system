@@ -1,5 +1,7 @@
 package com.bobola.bank_account_system.service;
 
+import com.bobola.bank_account_system.dto.AccountResponse;
+import com.bobola.bank_account_system.dto.TransactionResponse;
 import com.bobola.bank_account_system.entity.Account;
 import com.bobola.bank_account_system.entity.Transaction;
 import com.bobola.bank_account_system.entity.TransactionType;
@@ -20,7 +22,7 @@ public class AccountService {
     }
 
     @Transactional
-    public Account createAccount(String accountHolderName, BigDecimal initialBalance) {
+    public AccountResponse createAccount(String accountHolderName, BigDecimal initialBalance) {
         if (accountHolderName == null || accountHolderName.isBlank()) {
             throw new IllegalArgumentException("Account holder name cannot be empty");
         }
@@ -29,58 +31,81 @@ public class AccountService {
         }
 
         Account account = new Account(accountHolderName, initialBalance);
-        return accountRepository.save(account);
+        Account saved = accountRepository.save(account);
+        return toResponse(saved);
     }
 
     @Transactional(readOnly = true)
-    public Account getAccountById(Long id) {
-        return accountRepository.findById(id)
+    public AccountResponse getAccountById(Long id) {
+        Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
+        return toResponse(account);
     }
 
     @Transactional(readOnly = true)
-    public List<Account> getAllAccounts() {
-        return accountRepository.findAll();
+    public List<AccountResponse> getAllAccounts() {
+        return accountRepository.findAll()
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional
-    public Account deposit(Long accountId, BigDecimal amount) {
+    public AccountResponse deposit(Long accountId, BigDecimal amount) {
         validateAmount(amount);
+        Account account = findAccountEntity(accountId);
 
-        Account account = getAccountById(accountId);
-
-        BigDecimal newBalance = account.getBalance().add(amount);
-        account.setBalance(newBalance);
+        account.setBalance(account.getBalance().add(amount));
 
         Transaction transaction = new Transaction(TransactionType.DEPOSIT, amount, account);
         account.getTransactions().add(transaction);
 
-        return accountRepository.save(account);
+        Account saved = accountRepository.save(account);
+        return toResponse(saved);
     }
 
     @Transactional
-    public Account withdraw(Long accountId, BigDecimal amount) {
+    public AccountResponse withdraw(Long accountId, BigDecimal amount) {
         validateAmount(amount);
-
-        Account account = getAccountById(accountId);
+        Account account = findAccountEntity(accountId);
 
         if (account.getBalance().compareTo(amount) < 0) {
             throw new IllegalStateException("Insufficient funds: balance is " + account.getBalance()
                     + " but withdrawal amount is " + amount);
         }
 
-        BigDecimal newBalance = account.getBalance().subtract(amount);
-        account.setBalance(newBalance);
+        account.setBalance(account.getBalance().subtract(amount));
 
         Transaction transaction = new Transaction(TransactionType.WITHDRAWAL, amount, account);
         account.getTransactions().add(transaction);
 
-        return accountRepository.save(account);
+        Account saved = accountRepository.save(account);
+        return toResponse(saved);
+    }
+
+    private Account findAccountEntity(Long id) {
+        return accountRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
     }
 
     private void validateAmount(BigDecimal amount) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Amount must be greater than zero");
         }
+    }
+
+    private AccountResponse toResponse(Account account) {
+        List<TransactionResponse> transactionResponses = account.getTransactions()
+                .stream()
+                .map(t -> new TransactionResponse(t.getId(), t.getType(), t.getAmount(), t.getTimestamp()))
+                .toList();
+
+        return new AccountResponse(
+                account.getId(),
+                account.getAccountHolderName(),
+                account.getBalance(),
+                account.getCreatedAt(),
+                transactionResponses
+        );
     }
 }
