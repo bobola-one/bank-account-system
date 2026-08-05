@@ -1,6 +1,8 @@
 package com.bobola.bank_account_system.service;
 
 import com.bobola.bank_account_system.entity.Account;
+import com.bobola.bank_account_system.entity.Transaction;
+import com.bobola.bank_account_system.entity.TransactionType;
 import com.bobola.bank_account_system.repository.AccountRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,5 +41,46 @@ public class AccountService {
     @Transactional(readOnly = true)
     public List<Account> getAllAccounts() {
         return accountRepository.findAll();
+    }
+
+    @Transactional
+    public Account deposit(Long accountId, BigDecimal amount) {
+        validateAmount(amount);
+
+        Account account = getAccountById(accountId);
+
+        BigDecimal newBalance = account.getBalance().add(amount);
+        account.setBalance(newBalance);
+
+        Transaction transaction = new Transaction(TransactionType.DEPOSIT, amount, account);
+        account.getTransactions().add(transaction);
+
+        return accountRepository.save(account);
+    }
+
+    @Transactional
+    public Account withdraw(Long accountId, BigDecimal amount) {
+        validateAmount(amount);
+
+        Account account = getAccountById(accountId);
+
+        if (account.getBalance().compareTo(amount) < 0) {
+            throw new IllegalStateException("Insufficient funds: balance is " + account.getBalance()
+                    + " but withdrawal amount is " + amount);
+        }
+
+        BigDecimal newBalance = account.getBalance().subtract(amount);
+        account.setBalance(newBalance);
+
+        Transaction transaction = new Transaction(TransactionType.WITHDRAWAL, amount, account);
+        account.getTransactions().add(transaction);
+
+        return accountRepository.save(account);
+    }
+
+    private void validateAmount(BigDecimal amount) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Amount must be greater than zero");
+        }
     }
 }
