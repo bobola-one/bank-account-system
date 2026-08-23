@@ -67,6 +67,10 @@ public class MainFrame extends JFrame {
         JButton withdrawButton = new JButton("Withdraw");
         withdrawButton.addActionListener(e -> showAmountDialog("Withdraw", apiClient::withdraw));
         panel.add(withdrawButton);
+        
+        JButton historyButton = new JButton("View History");
+        historyButton.addActionListener(e -> showTransactionHistory());
+        panel.add(historyButton);
 
         return panel;
     }
@@ -172,6 +176,24 @@ public class MainFrame extends JFrame {
 
         JOptionPane.showMessageDialog(this, context + ": " + message,
                 "Error", JOptionPane.ERROR_MESSAGE);
+    }
+    
+    
+    /**
+     * Opens a {@link TransactionHistoryDialog} for the currently selected
+     * account.
+     */
+    private void showTransactionHistory() {
+        int selectedRow = accountTable.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(this, "Select an account first",
+                    "No Account Selected", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        AccountResponse account = tableModel.getAccountAt(selectedRow);
+        TransactionHistoryDialog dialog = new TransactionHistoryDialog(this, account);
+        dialog.setVisible(true);
     }
 
     /**
